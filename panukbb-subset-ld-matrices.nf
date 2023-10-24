@@ -15,7 +15,7 @@ process make_ld_mat {
     maxForks 50
     maxRetries 2
     errorStrategy {task.attempt <= maxRetries ? 'retry' : 'ignore'}
-    beforeScript 'source /net/topmed10/working/porchard/rnaseq/bin/config-pyspark.sh'
+    beforeScript "source ${params.pyspark_config}"
     cache 'lenient'
 
     input:
