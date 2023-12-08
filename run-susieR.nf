@@ -8,12 +8,15 @@ SNPS_EXCLUDE = params.snps_exclude
 process run_susie {
 
     publishDir "${params.results}/susie-out"
-    memory { 20.GB * task.attempt }
-    //queue 'nomosix'
-    clusterOptions='--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    //memory { 20.GB * task.attempt }
+    //memory { 20.GB + (100.GB * task.attempt - 1) }
+    memory { 120.GB * task.attempt }
+    //clusterOptions='--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    clusterOptions='--partition=main'
     maxForks 50
     container 'docker.io/porchard/coloc:20220524'
-    maxRetries 2
+    maxRetries 4
+    time '14d'
     errorStrategy {task.attempt <= maxRetries ? 'retry' : 'ignore'}
 
     input:
