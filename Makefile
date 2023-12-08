@@ -49,6 +49,14 @@ lift-variants:
 	mkdir -p $(ANALYSIS)
 	cd $(ANALYSIS) && nohup nextflow run -resume --results $(ANALYSIS)/results --variant_file $(DATA)/variants/full_variant_qc_metrics.txt.bgz --chain_file $(DATA)/chain/hg19ToHg38.over.chain.gz --fasta $(DATA)/fasta/Homo_sapiens_assembly38_noALT_noHLA_noDecoy_ERCC.fasta $(ROOT)/lift-panukbb-variants.nf &
 
+get-variants-that-lift-to-same-position:
+	mkdir -p $(ANALYSIS)
+	zcat $(WORK)/lift/variants/results/vcf/panukbb-hg38.vcf.gz | grep -v "^#" | cut -f1,2,4,5 | sort | uniq -d > $(ANALYSIS)/dups.txt
+	cat $(ANALYSIS)/dups.txt | perl -pe 's/\t/_/g' > $(ANALYSIS)/dup-variants.txt
+	# grep -f $(ANALYSIS)/dup-variants.txt $(WORK)/ancestry-specific-finemapping/lift-susie/results/susie-cs-and-convergence/gwas.cs.txt # no hits -- so none of the dups are pressent in susie CS lifted to hg38
+	zcat $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz | cut -f4,7 | grep -f $(ANALYSIS)/dup-variants.txt > $(ANALYSIS)/dup-variants.hg19.txt
+	cat $(ANALYSIS)/dup-variants.hg19.txt | cut -f1 | perl -pe 's/^/chr/; s/:/_/' > $(ANALYSIS)/dup-variants.hg19.reformatted.txt
+
 select-traits-per-ancestry: ANALYSIS=$(WORK)/selected-traits
 select-traits-per-ancestry: ANCESTRIES=AFR EUR
 select-traits-per-ancestry:
@@ -64,6 +72,7 @@ gwas:
 	cat $(ANALYSIS)/download.txt | sort | uniq | grep -v -w aws_path | grep -v -w aws_path_tabix > $(ANALYSIS)/download.tmp && mv $(ANALYSIS)/download.tmp $(ANALYSIS)/download.txt
 	cd $(ANALYSIS) && nohup nextflow run -resume --results $(ANALYSIS)/results --url_list $(ANALYSIS)/download.txt $(ROOT)/download-panukbb-gwas.nf &
 
+# TODO: update to handle the rare cases where two hg19 variants lift to the same hg38 position
 lift-gwas: ANALYSIS=$(WORK)/lift/gwas
 lift-gwas:
 	mkdir -p $(ANALYSIS)
@@ -84,25 +93,23 @@ subset-ld-matrices:
 	rm -rf $(ANALYSIS)/regions.bed
 	$(foreach a,$(ANCESTRIES),cat $(WORK)/ancestry-specific-finemapping/find-regions-to-finemap/results/regions-to-finemap-size-filter/*___$(a).regions.txt | perl -pe 's/$$/\t$(a)/' | sort | uniq | sort -k1,1 -k2n,2 >> $(ANALYSIS)/regions.bed$(NL))
 	cat $(ANALYSIS)/regions.bed | sort -k1,1 -k2n,2 > $(ANALYSIS)/regions.tmp && mv $(ANALYSIS)/regions.tmp $(ANALYSIS)/regions.bed
-	cd $(ANALYSIS) && nohup nextflow run -resume -work-dir --results $(ANALYSIS)/results --ld_mat_glob '$(WORK)/ld-matrices/results/full-matrix/*.bm' --ld_mat_idx_glob '$(WORK)/ld-matrices/results/full-index/*.ht' --regions $(ANALYSIS)/regions.bed $(ROOT)/panukbb-subset-ld-matrices.nf &
+	cd $(ANALYSIS) && nohup nextflow run -resume --pyspark_config '$(ROOT)/config-pyspark.sh' --results $(ANALYSIS)/results --ld_mat_glob '$(WORK)/ld-matrices/results/full-matrix/*.bm' --ld_mat_idx_glob '$(WORK)/ld-matrices/results/full-index/*.ht' --regions $(ANALYSIS)/regions.bed $(ROOT)/panukbb-subset-ld-matrices.nf &
 
 susie: ANALYSIS=$(WORK)/ancestry-specific-finemapping/susie
 susie:
-	mkdir -p $(ANALYSIS)/data
+	mkdir -p $(ANALYSIS)
 	zcat $(WORK)/lift/variants/results/vcf/rejected.vcf.gz | grep -v "^#" | cut -f1,2,4,5 | perl -pe 's/\t/_/g; s/chr//' > $(ANALYSIS)/exclude-snps.txt # variants that fail to lift hg19 --> hg38
+	cat $(WORK)/get-variants-that-lift-to-same-position/dup-variants.hg19.reformatted.txt | perl -pe 's/^chr//' >> $(ANALYSIS)/exclude-snps.txt
+	cat $(ANALYSIS)/exclude-snps.txt | sort > $(ANALYSIS)/exclude-snps.tmp && mv $(ANALYSIS)/exclude-snps.tmp $(ANALYSIS)/exclude-snps.txt
 	python $(BIN)/make-ancestry-specific-finemapping-susie-input-list.py --gwas-glob '$(WORK)/gwas/results/*.bgz' --regions-glob '$(WORK)/ancestry-specific-finemapping/find-regions-to-finemap/results/regions-to-finemap-size-filter/*' --ld-matrix-glob '$(WORK)/ancestry-specific-finemapping/ld-matrices/results/ld-matrix/*.ld.tsv.bgz' --ld-matrix-variants-glob '$(WORK)/ancestry-specific-finemapping/ld-matrices/results/ld-matrix/*.variants.tsv.gz' | awk 'NR>1' > $(ANALYSIS)/to-run.txt
-	cd $(ANALYSIS) && nohup nextflow run -resume -work-dir --to_run $(ANALYSIS)/to-run.txt --snps_exclude $(ANALYSIS)/exclude-snps.txt --results $(ANALYSIS)/results $(ROOT)/run-susieR.nf &
+	cd $(ANALYSIS) && nohup nextflow run -resume -with-trace --to_run $(ANALYSIS)/to-run.txt --snps_exclude $(ANALYSIS)/exclude-snps.txt --results $(ANALYSIS)/results $(ROOT)/run-susieR.nf &
+
+filter-susie: ANALYSIS=$(WORK)/ancestry-specific-finemapping/filter-susie
+filter-susie:
+	mkdir -p $(ANALYSIS)/susie-out
+	cd $(ANALYSIS) && python $(BIN)/remove-regions-with-extreme-number-of-variants.py $(WORK)/ancestry-specific-finemapping/susie/to-run.txt '$(WORK)/ancestry-specific-finemapping/ld-matrices/results/ld-matrix/*.variants.tsv.gz' $(WORK)/ancestry-specific-finemapping/susie/results/susie-out $(ANALYSIS)/susie-out
 
 lift-susie: ANALYSIS=$(WORK)/ancestry-specific-finemapping/lift-susie
 lift-susie:
 	mkdir -p $(ANALYSIS)/data
-	cd $(ANALYSIS) && nohup nextflow run -resume --susie_glob '$(WORK)/ancestry-specific-finemapping/susie/results/susie-out/*' --to_run $(WORK)/ancestry-specific-finemapping/susie/to-run.txt --chain $(DATA)/chain/hg19ToHg38.over.chain.gz --snp_conversions $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz --snp_conversions_idx $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz.tbi --results $(ANALYSIS)/results $(ROOT)/lift-susieR.nf &
-
-snps-that-lift-to-same-position:
-	mkdir -p $(ANALYSIS)
-	zcat $(WORK)/lift/variants/results/vcf/panukbb-hg38.vcf.gz | grep -v "^#" | cut -f1,2,4,5 | sort | uniq -d > $(ANALYSIS)/dups.txt
-	cat $(ANALYSIS)/dups.txt | perl -pe 's/\t/_/g' > $(ANALYSIS)/dup-variants.txt
-	grep -f $(ANALYSIS)/dup-variants.txt $(WORK)/ancestry-specific-finemapping/lift-susie/results/susie-cs-and-convergence/gwas.cs.txt # no hits -- so none of the dups are pressent in susie CS lifted to hg38
-	zcat $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz | cut -f4,7 | grep -f $(ANALYSIS)/dup-variants.txt > $(ANALYSIS)/dup-variants.hg19.txt
-	cat $(ANALYSIS)/dup-variants.hg19.txt | cut -f1 | perl -pe 's/^/chr/; s/:/_/' > $(ANALYSIS)/dup-variants.hg19.reformatted.
-
+	cd $(ANALYSIS) && nohup nextflow run -resume --susie_glob '$(WORK)/ancestry-specific-finemapping/filter-susie/susie-out/*' --to_run $(WORK)/ancestry-specific-finemapping/filter-susie/to-run.txt --chain $(DATA)/chain/hg19ToHg38.over.chain.gz --snp_conversions $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz --snp_conversions_idx $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz.tbi --results $(ANALYSIS)/results $(ROOT)/lift-susieR.nf &
