@@ -85,6 +85,17 @@ for(i in 1:nrow(susie_list)) {
     susie_out$mu <- susie_out$mu[,colnames(susie_out$mu) %in% names(hg19_to_hg38)]
     colnames(susie_out$mu) <- hg19_to_hg38[colnames(susie_out$mu)]
 
+    # change mu sign if the ref/alt alleles flip between refs
+    # doing this after converting to hg38 because otherwise some may be missing
+    swapped_alleles <- (conversions$swapped_alleles=='True')
+    names(swapped_alleles) <- conversions$hg38_id
+    mu_sign_factor <- ifelse(swapped_alleles[colnames(susie_out$mu)] == F, 1, -1)
+    stopifnot(names(mu_sign_factor) == colnames(susie_out$mu))
+    if (any(mu_sign_factor == -1)) {
+        new_mu <- t(t(susie_out$mu) * mu_sign_factor)
+    }
+
+
     susie_out$mu2 <- susie_out$mu2[,colnames(susie_out$mu2) %in% names(hg19_to_hg38)]
     colnames(susie_out$mu2) <- hg19_to_hg38[colnames(susie_out$mu2)]
 
