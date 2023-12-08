@@ -22,6 +22,9 @@ for(rda_in in susie_list$rda) {
     s <- get(tmp)
 
     converged <- c(converged, s$converged)
+    if (!s$converged) {
+        next
+    }
     cs <- s$sets$cs
     cs <- cs[lapply(cs, length) > 0]
     if (length(cs) > 0) {

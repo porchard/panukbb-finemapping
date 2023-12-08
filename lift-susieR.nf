@@ -13,7 +13,8 @@ process lift_regions {
 
     container 'library://porchard/default/general:20220107'
     publishDir "${params.results}/lifted-regions"
-    executor 'local'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    memory '10 GB'
 
     input:
     path(to_run)
@@ -35,10 +36,8 @@ process lift_susie {
 
     publishDir "${params.results}/susie-hg38"
     memory '10 GB'
-    //queue 'nomosix'
     container 'docker.io/porchard/coloc:20220505'
-    //executor 'local'
-    clusterOptions='--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
 
     input:
     each path("rda/*")
@@ -61,7 +60,7 @@ process lift_susie {
 process credible_sets_and_convergence {
 
     container 'docker.io/porchard/coloc:20220505'
-    clusterOptions='--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
 
     input:
     path("rda/*")
@@ -72,7 +71,7 @@ process credible_sets_and_convergence {
 
     """
     ls rda/* > rda-files.txt
-    susieR-get-credible-sets-and-convergence-2.R rda-files.txt gwas.
+    susieR-get-credible-sets-and-convergence.R rda-files.txt gwas.
     """
 
 }
@@ -81,7 +80,8 @@ process credible_sets_and_convergence {
 process concat_summary {
 
     publishDir "${params.results}/susie-liftover-summary"
-    executor 'local'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    container 'library://porchard/default/general:20220107'
 
     input:
     path("summary.*.txt")
@@ -101,7 +101,8 @@ process concat_summary {
 process concat_cs_and_convergence {
 
     publishDir "${params.results}/susie-cs-and-convergence"
-    executor 'local'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
+    container 'library://porchard/default/general:20220107'
 
     input:
     path("cs.*.txt")
@@ -122,7 +123,7 @@ process concat_cs_and_convergence {
 
 process lbf {
 
-    executor 'local'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
     container 'docker.io/porchard/coloc:20220505'
     maxForks 10
     memory '30 GB'
@@ -144,7 +145,7 @@ process concat_lbf {
 
     publishDir "${params.results}/susie-lbf"
     container 'library://porchard/default/general:20220107'
-    clusterOptions='--partition=topmed-working --exclude=topmed,topmed2,topmed[4-10]'
+    clusterOptions '--partition=topmed-working --exclude=topmed,topmed[2-10]'
     memory '100 GB'
 
     input:
@@ -177,7 +178,6 @@ workflow {
     lifted.summary.toSortedList() | concat_summary
     before_concat = credible_sets_and_convergence(lifted.for_cs.flatten().collate(500))
     concat_cs_and_convergence(before_concat.cs.toSortedList(), before_concat.converged.toSortedList())
-
 
     (lifted.for_cs.flatten().map({it -> [it.getName().split('___')[0], it]}).groupTuple() | lbf).toSortedList() | concat_lbf
 
