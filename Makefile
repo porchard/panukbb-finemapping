@@ -113,3 +113,7 @@ lift-susie: ANALYSIS=$(WORK)/ancestry-specific-finemapping/lift-susie
 lift-susie:
 	mkdir -p $(ANALYSIS)/data
 	cd $(ANALYSIS) && nohup nextflow run -resume --susie_glob '$(WORK)/ancestry-specific-finemapping/filter-susie/susie-out/*' --to_run $(WORK)/ancestry-specific-finemapping/filter-susie/to-run.txt --chain $(DATA)/chain/hg19ToHg38.over.chain.gz --snp_conversions $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz --snp_conversions_idx $(WORK)/lift/variants/results/conversion-table/snp-names.txt.gz.tbi --results $(ANALYSIS)/results $(ROOT)/lift-susieR.nf &
+
+hg19-cs:
+	mkdir -p $(ANALYSIS)
+	cd $(ANALYSIS) && nohup nextflow run -resume --susie_glob '$(WORK)/ancestry-specific-finemapping/filter-susie/susie-out/*' --results $(ANALYSIS)/results $(ROOT)/get-hg19-cs.nf &

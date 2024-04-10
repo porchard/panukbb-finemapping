@@ -31,3 +31,4 @@ You must have the following installed:
 8. Run SuSIE: `make susie`
 9. Filter SuSiE output, removing regions w/ more than 40k variants: `make filter-susie`
 10. Lift SuSiE to hg38: `make lift-susie`
+11. Extract hg19 CS: `make hg19-cs`
