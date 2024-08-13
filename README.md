@@ -18,6 +18,7 @@ You must have the following installed:
 2. Singularity (v. 3) installed
 3. `aws` CLI
 4. python3, with `pandas`, `hail`, `matplotlib`, and `seaborn` packages
+5. jupyter
 
 ## Running
 
@@ -32,3 +33,4 @@ You must have the following installed:
 9. Filter SuSiE output, removing regions w/ more than 40k variants: `make filter-susie`
 10. Lift SuSiE to hg38: `make lift-susie`
 11. Extract hg19 CS: `make hg19-cs`
+12. Summarize results: `make summarize-panukbb-finemapping`

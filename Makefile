@@ -117,3 +117,6 @@ lift-susie:
 hg19-cs:
 	mkdir -p $(ANALYSIS)
 	cd $(ANALYSIS) && nohup nextflow run -resume --susie_glob '$(WORK)/ancestry-specific-finemapping/filter-susie/susie-out/*' --results $(ANALYSIS)/results $(ROOT)/get-hg19-cs.nf &
+
+summarize-panukbb-finemapping:
+	cd notebooks && jupyter nbconvert --execute --to notebook --inplace summarize-panukbb-finemapping.ipynb
